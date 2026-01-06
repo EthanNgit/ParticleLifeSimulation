@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -38,11 +39,12 @@ public class SimulationManager : MonoBehaviour
 
     private readonly float frictionHalfLife = 0.04f;
 
-
     private float minX;
     private float maxX;
     private float minY;
     private float maxY;
+
+    private Dictionary<Vector2Int, List<int>> grid;
 
     void Start()
     {
@@ -51,9 +53,11 @@ public class SimulationManager : MonoBehaviour
         minY = -EnvSize.y;
         maxY = EnvSize.y;
 
-        circleMesh = CreateCircleMesh(32, 0.025f);
+        circleMesh = CreateCircleMesh(32, 0.015f);
         matrices = new Matrix4x4[ParticleCount];
         propertyBlock = new MaterialPropertyBlock();
+
+        grid = new Dictionary<Vector2Int, List<int>>();
 
         InitMatrix();
         InitParticles();
@@ -64,23 +68,45 @@ public class SimulationManager : MonoBehaviour
         float dt = Time.deltaTime;
         float frictionFactor = (float)Math.Pow(0.5f, dt / frictionHalfLife);
 
+        grid.Clear();
+        for (int i = 0; i < ParticleCount; i++)
+        {
+            Vector2Int cellKey = GetGridCell(particles[i].position);
+            if (!grid.ContainsKey(cellKey))
+                grid[cellKey] = new List<int>();
+            grid[cellKey].Add(i);
+        }
+
         Parallel.For(0, ParticleCount, i =>
         {
             float totalForceX = 0;
             float totalForceY = 0;
 
-            for (int j = 0; j < ParticleCount; j++)
-            {
-                if (i == j) continue;
+            Vector2Int cellKey = GetGridCell(particles[i].position);
 
-                float rx = particles[j].position.x - particles[i].position.x;
-                float ry = particles[j].position.y - particles[i].position.y;
-                float r = Mathf.Sqrt(rx * rx + ry * ry);
-                if (r > 0 && r < RMax)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
                 {
-                    float f = ForceFunction(r / RMax, interactionMatrix[particles[i].particleType, particles[j].particleType]);
-                    totalForceX += rx / r * f;
-                    totalForceY += ry / r * f;
+                    Vector2Int neighborKey = cellKey + new Vector2Int(dx, dy);
+
+                    if (grid.ContainsKey(neighborKey))
+                    {
+                        foreach (int j in grid[neighborKey])
+                        {
+                            if (i == j) continue;
+
+                            float rx = particles[j].position.x - particles[i].position.x;
+                            float ry = particles[j].position.y - particles[i].position.y;
+                            float r = Mathf.Sqrt(rx * rx + ry * ry);
+                            if (r > 0 && r < RMax)
+                            {
+                                float f = ForceFunction(r / RMax, interactionMatrix[particles[i].particleType, particles[j].particleType]);
+                                totalForceX += rx / r * f;
+                                totalForceY += ry / r * f;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -109,6 +135,13 @@ public class SimulationManager : MonoBehaviour
         }
 
         Graphics.DrawMeshInstanced(circleMesh, 0, circleMaterial, matrices, ParticleCount, propertyBlock);
+    }
+
+    Vector2Int GetGridCell(Vector2 position)
+    {
+        int x = Mathf.FloorToInt((position.x - minX) / RMax);
+        int y = Mathf.FloorToInt((position.y - minY) / RMax);
+        return new Vector2Int(x, y);
     }
 
     float ForceFunction(float r, float a)
