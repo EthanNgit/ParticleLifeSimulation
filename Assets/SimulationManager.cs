@@ -24,6 +24,8 @@ public class SimulationManager : MonoBehaviour
     public int ParticleTypeCount = 1;
     public float ForceMultiplier = 1.0f;
     public Vector2 EnvSize = new Vector2(10, 5);
+    public float RMax = 0.5f;
+    public float Beta = 0.5f;
 
     private Mesh circleMesh;
     private Matrix4x4[] matrices;
@@ -33,9 +35,9 @@ public class SimulationManager : MonoBehaviour
     private Vector4[] particleColors;
     private float[,] interactionMatrix;
     private readonly Quaternion defaultRot = Quaternion.Euler(0, 180, 0);
-    private readonly float rMax = 0.5f;
+
     private readonly float frictionHalfLife = 0.04f;
-    private readonly float beta = 0.3f;
+
 
     private float minX;
     private float maxX;
@@ -74,16 +76,16 @@ public class SimulationManager : MonoBehaviour
                 float rx = particles[j].position.x - particles[i].position.x;
                 float ry = particles[j].position.y - particles[i].position.y;
                 float r = Mathf.Sqrt(rx * rx + ry * ry);
-                if (r > 0 && r < rMax)
+                if (r > 0 && r < RMax)
                 {
-                    float f = ForceFunction(r / rMax, interactionMatrix[particles[i].particleType, particles[j].particleType]);
+                    float f = ForceFunction(r / RMax, interactionMatrix[particles[i].particleType, particles[j].particleType]);
                     totalForceX += rx / r * f;
                     totalForceY += ry / r * f;
                 }
             }
 
-            totalForceX *= rMax * ForceMultiplier;
-            totalForceY *= rMax * ForceMultiplier;
+            totalForceX *= RMax * ForceMultiplier;
+            totalForceY *= RMax * ForceMultiplier;
 
             float newVelocityX = (particles[i].velocity.x * frictionFactor) + totalForceX * dt;
             float newVelocityY = (particles[i].velocity.y * frictionFactor) + totalForceY * dt;
@@ -111,13 +113,13 @@ public class SimulationManager : MonoBehaviour
 
     float ForceFunction(float r, float a)
     {
-        if (r < beta)
+        if (r < Beta)
         {
-            return r / beta - 1;
+            return (r / Beta - 1);
         }
-        else if (beta < r && r < 1)
+        else if (Beta < r && r < 1)
         {
-            return a * (1 - Math.Abs(2 * r - 1 - beta) / (1 - beta));
+            return a * (1 - Math.Abs(2 * r - 1 - Beta) / (1 - Beta));
         }
         else
         {
